@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   try {
     // Zugriffstoken anfordern
     const tokenRes = await fetch(
-      `https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`,
+      'https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials',
       { method: 'POST' }
     );
 
