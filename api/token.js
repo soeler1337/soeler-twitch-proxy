@@ -5,5 +5,6 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   const bearer = process.env.TWITCH_BF_BEARER;
-  res.status(200).json({ access_token: bearer });
+  const clientId = process.env.TWITCH_BF_TWITCH_BF_CLIENT_ID;
+  res.status(200).json({ access_token: bearer, clientId: clientId });
 }
