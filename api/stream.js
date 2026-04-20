@@ -2,14 +2,25 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   const clientId = process.env.TWITCH_CLIENT_ID;
-  const bearer = process.env.TWITCH_BEARER;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
   const username = "soeler1337";
 
   try {
+    const tokenRes = await fetch(
+      `https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`,
+      { method: 'POST' }
+    );
+    const tokenData = await tokenRes.json();
+
+    if (!tokenData.access_token) {
+      console.error('Twitch token error:', JSON.stringify(tokenData));
+      return res.status(502).json({ error: 'Twitch auth failed' });
+    }
+
     const response = await fetch(`https://api.twitch.tv/helix/streams?user_login=${username}`, {
       headers: {
         "Client-ID": clientId,
-        "Authorization": `Bearer ${bearer}`
+        "Authorization": `Bearer ${tokenData.access_token}`
       }
     });
 
