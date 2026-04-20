@@ -13,8 +13,6 @@ export default async function handler(req, res) {
   const clientId = process.env.TWITCH_BF_CLIENT_ID;
   const clientSecret = process.env.TWITCH_BF_CLIENT_SECRET;
 
-  console.log('clientId present:', !!clientId, '| clientSecret present:', !!clientSecret);
-
   const tokenRes = await fetch(
     `https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`,
     { method: 'POST' }
@@ -22,8 +20,8 @@ export default async function handler(req, res) {
   const tokenData = await tokenRes.json();
 
   if (!tokenData.access_token) {
-    console.error('Twitch token FULL error:', JSON.stringify(tokenData), 'status:', tokenRes.status);
-    return res.status(502).json({ error: 'Twitch auth failed', detail: tokenData, streams: [] });
+    console.error('Twitch token error:', tokenRes.status, tokenData.message);
+    return res.status(502).json({ error: 'Twitch auth failed', streams: [] });
   }
 
   const headers = {
@@ -39,7 +37,7 @@ export default async function handler(req, res) {
     const params = chunk.map(u => `user_login=${encodeURIComponent(u)}`).join('&');
     const twitchRes = await fetch(`https://api.twitch.tv/helix/streams?${params}`, { headers });
     const data = await twitchRes.json();
-    if (!twitchRes.ok || data.error) { console.error('Twitch API error:', JSON.stringify(data)); continue; }
+    if (!twitchRes.ok || data.error) { console.error('Twitch API error:', data); continue; }
     if (Array.isArray(data.data)) allStreams = allStreams.concat(data.data);
   }
 
