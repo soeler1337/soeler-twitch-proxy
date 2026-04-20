@@ -1,11 +1,10 @@
 export default async function handler(req, res) {
-  // CORS Header setzen
-  res.setHeader('Access-Control-Allow-Origin', '*'); // Für Sicherheit: später Domain eintragen
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
-    return res.status(204).end(); // Preflight-Request erfolgreich ohne Inhalt
+    return res.status(204).end();
   }
 
   if (req.method !== 'POST') {
@@ -17,15 +16,27 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid usernames' });
   }
 
-  const bearer = process.env.TWITCH_BF_BEARER;
   const clientId = process.env.TWITCH_BF_CLIENT_ID;
+  const clientSecret = process.env.TWITCH_BF_CLIENT_SECRET;
+
+  // Auto-refresh App Access Token via Client Credentials
+  const tokenRes = await fetch(
+    `https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`,
+    { method: 'POST' }
+  );
+  const tokenData = await tokenRes.json();
+
+  if (!tokenData.access_token) {
+    console.error('Twitch token error:', JSON.stringify(tokenData));
+    return res.status(502).json({ error: 'Twitch auth failed', streams: [] });
+  }
 
   const headers = {
     'Client-ID': clientId,
-    'Authorization': `Bearer ${bearer}`,
+    'Authorization': `Bearer ${tokenData.access_token}`,
   };
 
-  // Twitch erlaubt max. 100 user_logins → ggf. splitten
+  // Twitch erlaubt max. 100 user_logins pro Request
   const chunks = [];
   for (let i = 0; i < usernames.length; i += 100) {
     chunks.push(usernames.slice(i, i + 100));
@@ -36,7 +47,13 @@ export default async function handler(req, res) {
     const params = chunk.map(u => `user_login=${encodeURIComponent(u)}`).join('&');
     const twitchRes = await fetch(`https://api.twitch.tv/helix/streams?${params}`, { headers });
     const data = await twitchRes.json();
-    allStreams = allStreams.concat(data.data);
+    if (!twitchRes.ok || data.error) {
+      console.error('Twitch API error:', JSON.stringify(data));
+      continue;
+    }
+    if (Array.isArray(data.data)) {
+      allStreams = allStreams.concat(data.data);
+    }
   }
 
   res.status(200).json({ streams: allStreams });
