@@ -1,4 +1,4 @@
-// Latest video from a YouTube channel via RSS (no API key needed)
+// Latest videos from a YouTube channel via RSS (no API key needed)
 const CHANNELS = {
   soelers_ecke: "UCv-uO54XMvAvW42rY5IxYFQ",
   soeler1337: null // add channel ID here if needed later
@@ -14,6 +14,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "unknown channel" });
   }
 
+  const limit = Math.min(parseInt(req.query.limit, 10) || 3, 10);
+
   try {
     const feedRes = await fetch(
       `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`
@@ -21,28 +23,28 @@ export default async function handler(req, res) {
     if (!feedRes.ok) throw new Error("feed fetch failed");
     const xml = await feedRes.text();
 
-    const entry = xml.match(/<entry>([\s\S]*?)<\/entry>/);
-    if (!entry) return res.status(200).json({ video: null });
-
-    const videoId = entry[1].match(/<yt:videoId>([^<]+)<\/yt:videoId>/)?.[1] || null;
-    const title = entry[1].match(/<title>([^<]+)<\/title>/)?.[1] || "";
-    const published = entry[1].match(/<published>([^<]+)<\/published>/)?.[1] || null;
-    const link = entry[1].match(/<link rel="alternate" href="([^"]+)"/)?.[1] || null;
-    const isShort = link ? link.includes("/shorts/") : false;
+    const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)];
+    const videos = entries.slice(0, limit).map(function (m) {
+      const e = m[1];
+      const videoId = e.match(/<yt:videoId>([^<]+)<\/yt:videoId>/)?.[1] || null;
+      const title = e.match(/<title>([^<]+)<\/title>/)?.[1] || "";
+      const published = e.match(/<published>([^<]+)<\/published>/)?.[1] || null;
+      const link = e.match(/<link rel="alternate" href="([^"]+)"/)?.[1] || null;
+      return {
+        id: videoId,
+        title,
+        published,
+        url: link,
+        isShort: link ? link.includes("/shorts/") : false,
+        thumbnail: videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null
+      };
+    }).filter(function (v) { return v.id; });
 
     res.status(200).json({
-      video: videoId
-        ? {
-            id: videoId,
-            title,
-            published,
-            url: link,
-            isShort,
-            thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-          }
-        : null
+      video: videos[0] || null, // backwards compat
+      videos
     });
   } catch (err) {
-    res.status(500).json({ error: "Fehler beim Laden des Videos" });
+    res.status(500).json({ error: "Fehler beim Laden der Videos" });
   }
 }
